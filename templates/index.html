@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GD Stats</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #111111; color: #e8e8e8; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        nav { display: flex; justify-content: center; align-items: center; gap: 2.5rem; padding: 1rem 2rem; border-bottom: 1px solid #222; }
+        .nav-logo { font-size: 0.85rem; font-weight: 700; color: #fff; letter-spacing: 0.15em; text-decoration: none; }
+        .nav-link { font-size: 0.82rem; color: #666; text-decoration: none; }
+        .nav-link:hover { color: #ccc; }
+        .nav-btn { font-size: 0.82rem; color: #ccc; background: #222; border: 1px solid #333; border-radius: 5px; padding: 0.35rem 0.9rem; text-decoration: none; }
+        .nav-btn:hover { color: #fff; border-color: #555; }
+
+        .hero { text-align: center; padding: 2.5rem 1rem 2rem; }
+        .hero h1 { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.18em; color: #fff; }
+        .hero p { font-size: 0.8rem; color: #555; margin-top: 0.4rem; }
+
+        .stats-bar { display: flex; justify-content: center; border-top: 1px solid #222; border-bottom: 1px solid #222; margin-bottom: 2rem; }
+        .stat { padding: 1.2rem 2.5rem; text-align: center; border-right: 1px solid #222; }
+        .stat:last-child { border-right: none; }
+        .stat-n { font-size: 1.4rem; font-weight: 600; color: #fff; }
+        .stat-l { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 0.2rem; }
+
+        .wrap { max-width: 860px; margin: 0 auto; padding: 0 1.5rem 3rem; }
+
+        .search-box { display: flex; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 7px; overflow: hidden; margin-bottom: 0.4rem; }
+        .search-box input { flex: 1; background: transparent; border: none; padding: 0.8rem 1.1rem; color: #e8e8e8; font-size: 0.88rem; outline: none; }
+        .search-box input::placeholder { color: #444; }
+        .search-box button { background: transparent; border: none; border-left: 1px solid #2a2a2a; padding: 0.8rem 1.2rem; color: #666; cursor: pointer; font-size: 0.82rem; }
+        .search-box button:hover { color: #ccc; }
+
+        .search-drop { margin-bottom: 1.5rem; }
+        .search-drop a { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1.1rem; background: #1a1a1a; border: 1px solid #2a2a2a; border-top: none; text-decoration: none; }
+        .search-drop a:hover { background: #222; }
+        .search-drop a:last-child { border-radius: 0 0 7px 7px; }
+        .s-name { color: #e8e8e8; font-size: 0.85rem; }
+        .s-author { color: #555; font-size: 0.75rem; margin-left: 0.4rem; }
+        .s-diff { color: #555; font-size: 0.75rem; }
+
+        .section { border: 1px solid #222; border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
+        .section-head { display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 1rem; background: #171717; border-bottom: 1px solid #222; }
+        .section-title { font-size: 0.68rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+
+        .filters { display: flex; gap: 0.3rem; }
+        .f-btn { font-size: 0.72rem; color: #555; background: transparent; border: 1px solid #2a2a2a; border-radius: 4px; padding: 0.25rem 0.6rem; cursor: pointer; }
+        .f-btn.on { color: #e8e8e8; background: #222; border-color: #444; }
+        .f-btn:hover { color: #aaa; }
+
+        .col-headers { display: flex; align-items: center; gap: 1rem; padding: 0.4rem 1rem; border-bottom: 1px solid #1a1a1a; }
+        .col-h { font-size: 0.62rem; color: #444; text-transform: uppercase; letter-spacing: 0.08em; }
+        .col-h.sortable { cursor: pointer; user-select: none; }
+        .col-h.sortable:hover { color: #888; }
+        .col-h.sort-desc::after { content: ' ↓'; color: #aaa; }
+        .col-h.sort-asc::after { content: ' ↑'; color: #aaa; }
+
+        .lvl { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1rem; border-bottom: 1px solid #171717; cursor: pointer; transition: background 0.1s; }
+        .lvl:nth-child(odd) { background: #111; }
+        .lvl:nth-child(even) { background: #161616; }
+        .lvl:hover { background: #1e1e1e; }
+        .lvl:last-child { border-bottom: none; }
+
+        .lvl-num { width: 1.8rem; font-size: 0.75rem; color: #444; text-align: right; flex-shrink: 0; }
+        .lvl-info { flex: 1; min-width: 0; }
+        .lvl-name { font-size: 0.88rem; font-weight: 500; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .lvl-author { font-size: 0.73rem; color: #555; margin-top: 0.1rem; display: inline-block; }
+        .lvl-author:hover { color: #999; }
+        .lvl-dl { font-size: 0.78rem; color: #555; flex-shrink: 0; text-align: right; min-width: 5rem; }
+        .lvl-likes { font-size: 0.78rem; color: #555; flex-shrink: 0; text-align: right; min-width: 4.5rem; }
+        .lvl-pct { font-size: 0.85rem; font-weight: 600; flex-shrink: 0; text-align: right; min-width: 4rem; }
+        .pa { color: #ffffff; }
+        .pb { color: #aaaaaa; }
+        .pc { color: #666666; }
+        .pd { color: #444444; }
+
+        .badge { font-size: 0.58rem; padding: 1px 4px; border: 1px solid #333; color: #555; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+        .more { text-align: center; padding: 0.8rem; font-size: 0.78rem; color: #444; cursor: pointer; background: #171717; }
+        .more:hover { color: #aaa; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="/" class="nav-logo">GD STATS</a>
+    <a href="/" class="nav-link">Главная</a>
+    <a href="/stats" class="nav-link">Статистика</a>
+    <a href="/leaderboard" class="nav-link">Лидерборд</a>
+    <a href="/random" class="nav-btn">Случайный уровень</a>
+</nav>
+
+<div class="hero">
+    <h1>GD STATS</h1>
+    <p>Аналитика Geometry Dash которой нет в игре</p>
+</div>
+
+<div class="stats-bar">
+    <div class="stat"><div class="stat-n">{{ "{:,}".format(total_levels) }}</div><div class="stat-l">Уровней</div></div>
+    <div class="stat"><div class="stat-n">{{ "{:,}".format(platformers) }}</div><div class="stat-l">Платформеров</div></div>
+    <div class="stat"><div class="stat-n">{{ "{:,}".format(classic) }}</div><div class="stat-l">Классических</div></div>
+    <div class="stat"><div class="stat-n">{{ avg_ratio }}%</div><div class="stat-l">Ср. % лайков</div></div>
+</div>
+
+<div class="wrap">
+
+    <div class="search-box">
+        <input type="text" id="si" placeholder="Название уровня или ID...">
+        <button onclick="doSearch()">Найти</button>
+    </div>
+    <div id="sd" class="search-drop"></div>
+
+    <!-- Лучшие -->
+    <div class="section">
+        <div class="section-head">
+            <span class="section-title">Лучшие уровни — соотношение лайков к загрузкам</span>
+            <div class="filters">
+                <button class="f-btn on" onclick="setP('best','all',this)">Всё время</button>
+                <button class="f-btn" onclick="setP('best','month',this)">Месяц</button>
+                <button class="f-btn" onclick="setP('best','week',this)">Неделя</button>
+                <button class="f-btn" onclick="setP('best','day',this)">День</button>
+            </div>
+        </div>
+        <div class="col-headers" id="best-headers">
+            <span style="width:1.8rem"></span>
+            <span class="col-h" style="flex:1">Уровень</span>
+            <span class="col-h sortable" style="min-width:5rem;text-align:right" data-sec="best" data-col="downloads">Загрузки</span>
+            <span class="col-h sortable" style="min-width:4.5rem;text-align:right" data-sec="best" data-col="likes">Лайки</span>
+            <span class="col-h sortable" style="min-width:4rem;text-align:right" data-sec="best" data-col="like_ratio">%</span>
+        </div>
+        <div id="best-list">
+            {% for lvl in top_levels %}
+            <div class="lvl" onclick="go('/level/{{ lvl.id }}')">
+                <span class="lvl-num">{{ loop.index }}</span>
+                <div class="lvl-info">
+                    <div class="lvl-name">{{ lvl.name }}{% if lvl.mythic %}<span class="badge">M</span>{% elif lvl.legendary %}<span class="badge">L</span>{% elif lvl.epic %}<span class="badge">E</span>{% elif lvl.featured %}<span class="badge">F</span>{% endif %}</div>
+                    <div class="lvl-author" onclick="event.stopPropagation(); go('/player/{{ lvl.author }}')">{{ lvl.author }}</div>
+                </div>
+                <span class="lvl-dl">{{ "{:,}".format(lvl.downloads) }}</span>
+                <span class="lvl-likes">{{ "{:,}".format(lvl.likes) }}</span>
+                <span class="lvl-pct {% if lvl.like_ratio > 15 %}pa{% elif lvl.like_ratio > 5 %}pb{% elif lvl.like_ratio >= 0 %}pc{% else %}pd{% endif %}">{{ lvl.like_ratio }}%</span>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="more" onclick="more('best')">Показать ещё</div>
+    </div>
+
+<script>
+function go(url) { window.location.href = url }
+
+async function doSearch() {
+    const q = document.getElementById('si').value.trim()
+    if (!q) return
+    if (/^\d+$/.test(q)) { go('/level/' + q); return }
+    const sd = document.getElementById('sd')
+    sd.innerHTML = ''
+    const res = await fetch('/api/search/levels?q=' + encodeURIComponent(q))
+    const lvls = await res.json()
+    if (!lvls.length) return
+    sd.innerHTML = lvls.slice(0,5).map(l => `
+        <a href="/level/${l.id}">
+            <div><span class="s-name">${l.name}</span><span class="s-author">by ${l.author}</span></div>
+            <span class="s-diff">${l.difficulty}</span>
+        </a>`).join('')
+}
+
+document.getElementById('si').addEventListener('keypress', e => { if (e.key==='Enter') doSearch() })
+document.addEventListener('click', e => {
+    if (!e.target.closest('.search-box') && !e.target.closest('.search-drop'))
+        document.getElementById('sd').innerHTML = ''
+})
+
+const st = {
+    best:  { p:'all', o:10, col:null, dir:0 },
+    worst: { p:'all', o:10, col:null, dir:0 }
+}
+
+// Вешаем клики на заголовки колонок
+document.querySelectorAll('.col-h.sortable').forEach(h => {
+    h.addEventListener('click', () => {
+        const sec = h.dataset.sec
+        const col = h.dataset.col
+        const s = st[sec]
+
+        // Сбрасываем все заголовки этой секции
+        document.querySelectorAll(`#${sec}-headers .col-h`).forEach(el => {
+            el.classList.remove('sort-asc', 'sort-desc')
+        })
+
+        if (s.col === col) {
+            s.dir = (s.dir + 1) % 3
+        } else {
+            s.col = col
+            s.dir = 1
+        }
+
+        if (s.dir === 0) {
+            s.col = null
+        } else {
+            h.classList.add(s.dir === 1 ? 'sort-desc' : 'sort-asc')
+        }
+
+        s.o = 0
+        load(sec, true)
+    })
+})
+
+function setP(sec, p, btn) {
+    st[sec].p = p; st[sec].o = 0
+    btn.closest('.filters').querySelectorAll('.f-btn').forEach(b => b.classList.remove('on'))
+    btn.classList.add('on')
+    load(sec, true)
+}
+
+async function load(sec, reset) {
+    const s = st[sec]
+    const sortCol = s.col || 'like_ratio'
+    let order
+    if (s.col) {
+        order = s.dir === 1 ? 'desc' : 'asc'
+    } else {
+        order = sec === 'best' ? 'desc' : 'asc'
+    }
+
+    const res = await fetch(`/api/levels?order=${order}&sort=${sortCol}&period=${s.p}&offset=${s.o}&limit=10`)
+    const lvls = await res.json()
+
+    const html = lvls.map((l,i) => `
+        <div class="lvl" onclick="go('/level/${l.id}')">
+            <span class="lvl-num">${s.o + i + 1}</span>
+            <div class="lvl-info">
+                <div class="lvl-name">${l.name}${l.mythic?'<span class="badge">M</span>':l.legendary?'<span class="badge">L</span>':l.epic?'<span class="badge">E</span>':l.featured?'<span class="badge">F</span>':''}</div>
+                <div class="lvl-author" onclick="event.stopPropagation(); go('/player/${l.author}')">${l.author}</div>
+            </div>
+            <span class="lvl-dl">${l.downloads.toLocaleString()}</span>
+            <span class="lvl-likes">${l.likes !== undefined ? l.likes.toLocaleString() : '-'}</span>
+            <span class="lvl-pct ${l.like_ratio>15?'pa':l.like_ratio>5?'pb':l.like_ratio>=0?'pc':'pd'}">${l.like_ratio}%</span>
+        </div>`).join('')
+
+    const el = document.getElementById(sec+'-list')
+    if (reset) { el.innerHTML = html; st[sec].o = lvls.length }
+    else { el.innerHTML += html; st[sec].o += lvls.length }
+}
+
+async function more(sec) { await load(sec, false) }
+</script>
+</body>
+</html>

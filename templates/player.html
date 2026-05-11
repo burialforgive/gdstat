@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ player.username }} — GD Stats</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #111111; color: #e8e8e8; font-family: 'Segoe UI', system-ui, sans-serif; }
+        nav { display: flex; justify-content: center; align-items: center; gap: 2.5rem; padding: 1rem 2rem; border-bottom: 1px solid #222; }
+        .nav-logo { font-size: 0.85rem; font-weight: 700; color: #fff; letter-spacing: 0.15em; text-decoration: none; }
+        .nav-link { font-size: 0.82rem; color: #666; text-decoration: none; }
+        .nav-link:hover { color: #ccc; }
+        .nav-btn { font-size: 0.82rem; color: #ccc; background: #222; border: 1px solid #333; border-radius: 5px; padding: 0.35rem 0.9rem; text-decoration: none; }
+        .container { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+        .card { background: #161616; border: 1px solid #222; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+        .player-name { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 0.4rem; }
+        .player-rank { font-size: 0.82rem; color: #444; }
+        .player-rank span { color: #888; }
+        .mod-badge { display: inline-block; font-size: 0.65rem; padding: 2px 7px; border-radius: 3px; border: 1px solid #333; color: #666; margin-left: 6px; vertical-align: middle; }
+        .socials-row { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; }
+        .social-link { font-size: 0.78rem; color: #555; background: #111; border: 1px solid #222; border-radius: 4px; padding: 0.25rem 0.7rem; text-decoration: none; }
+        .social-link:hover { color: #aaa; }
+        .section-title { font-size: 0.68rem; color: #444; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin: 1.5rem 0 0.6rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #222; border: 1px solid #222; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+        .stat-cell { background: #161616; padding: 1rem; text-align: center; }
+        .stat-val { font-size: 1.1rem; font-weight: 600; color: #fff; }
+        .stat-label { font-size: 0.65rem; color: #444; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.2rem; }
+        .levels-wrap { background: #222; border: 1px solid #222; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+        .levels-row { display: grid; gap: 1px; background: #222; }
+        .levels-row + .levels-row { border-top: 1px solid #222; }
+        .chart-wrap { background: #161616; border: 1px solid #222; border-radius: 8px; padding: 1.5rem 1.5rem 0; margin-bottom: 1rem; }
+        .chart-icons-row { display: flex; padding: 6px 0 12px; }
+        .chart-icon { flex: 1; display: flex; justify-content: center; }
+        .chart-icon img { width: 32px; height: 32px; object-fit: contain; }
+        .total-bar { background: #161616; border: 1px solid #222; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        .total-label { font-size: 0.75rem; color: #444; text-transform: uppercase; letter-spacing: 0.08em; }
+        .total-val { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="/" class="nav-logo">GD STATS</a>
+    <a href="/" class="nav-link">Главная</a>
+    <a href="/stats" class="nav-link">Статистика</a>
+    <a href="/leaderboard" class="nav-link">Лидерборд</a>
+    <a href="/random" class="nav-btn">Случайный уровень</a>
+</nav>
+
+<div class="container">
+
+    <div class="card">
+        <div class="player-name">
+            {{ player.username }}
+            {% if player.moderator == 2 %}<span class="mod-badge">Elder Mod</span>
+            {% elif player.moderator == 1 %}<span class="mod-badge">Moderator</span>
+            {% endif %}
+        </div>
+        <div class="player-rank">
+            {% if player.rank and player.rank|int > 0 %}Ранг: <span>#{{ "{:,}".format(player.rank|int) }}</span>{% else %}Нет ранга{% endif %}
+        </div>
+        {% if player.socials %}
+        <div class="socials-row">
+            {% if player.youtube %}<a href="https://youtube.com/{{ player.youtube }}" class="social-link" target="_blank">YouTube</a>{% endif %}
+            {% if player.twitter %}<a href="https://twitter.com/{{ player.twitter }}" class="social-link" target="_blank">Twitter</a>{% endif %}
+            {% if player.twitch %}<a href="https://twitch.tv/{{ player.twitch }}" class="social-link" target="_blank">Twitch</a>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="section-title">Статистика</div>
+    <div class="stats-grid">
+        <div class="stat-cell"><div class="stat-val">{{ "{:,}".format(player.stars) }}</div><div class="stat-label">Звёзды</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ player.demons }}</div><div class="stat-label">Демоны</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ player.moons }}</div><div class="stat-label">Луны</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ "{:,}".format(player.diamonds) }}</div><div class="stat-label">Алмазы</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ player.coins }}</div><div class="stat-label">Монеты</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ "{:,}".format(player.userCoins) }}</div><div class="stat-label">User Coins</div></div>
+        <div class="stat-cell"><div class="stat-val">{{ player.cp }}</div><div class="stat-label">CP</div></div>
+    </div>
+
+    {% if player.classicLevelsCompleted %}
+    {% set lvls  = player.classicLevelsCompleted %}
+    {% set plvls = player.platformerLevelsCompleted or {} %}
+    {% set c     = player.classicDemonsCompleted or {} %}
+    {% set pd    = player.platformerDemonsCompleted or {} %}
+
+    {% set auto_v   = (lvls.auto   or 0) + (plvls.auto   or 0) %}
+    {% set easy_v   = (lvls.easy   or 0) + (plvls.easy   or 0) %}
+    {% set norm_v   = (lvls.normal or 0) + (plvls.normal or 0) %}
+    {% set hard_v   = (lvls.hard   or 0) + (plvls.hard   or 0) %}
+    {% set hrdr_v   = (lvls.harder or 0) + (plvls.harder or 0) %}
+    {% set insa_v   = (lvls.insane or 0) + (plvls.insane or 0) %}
+    {% set dail_v   = lvls.daily    or 0 %}
+    {% set gaun_v   = lvls.gauntlet or 0 %}
+    {% set grand    = auto_v + easy_v + norm_v + hard_v + hrdr_v + insa_v + dail_v + gaun_v %}
+
+    <div class="section-title">Пройденные уровни</div>
+
+    <!-- Строка 1: основные сложности -->
+    {% set row1 = [] %}
+    {% if auto_v > 0 %}{% set _ = row1.append(('Auto', auto_v)) %}{% endif %}
+    {% if easy_v > 0 %}{% set _ = row1.append(('Easy', easy_v)) %}{% endif %}
+    {% if norm_v > 0 %}{% set _ = row1.append(('Normal', norm_v)) %}{% endif %}
+    {% if hard_v > 0 %}{% set _ = row1.append(('Hard', hard_v)) %}{% endif %}
+    {% if hrdr_v > 0 %}{% set _ = row1.append(('Harder', hrdr_v)) %}{% endif %}
+    {% if insa_v > 0 %}{% set _ = row1.append(('Insane', insa_v)) %}{% endif %}
+
+    <!-- Строка 2: daily + gauntlet -->
+    {% set row2 = [] %}
+    {% if dail_v > 0 %}{% set _ = row2.append(('Daily', dail_v)) %}{% endif %}
+    {% if gaun_v > 0 %}{% set _ = row2.append(('Gauntlet', gaun_v)) %}{% endif %}
+
+    <div class="levels-wrap">
+        {% if row1 %}
+        <div class="levels-row" style="grid-template-columns: repeat({{ row1|length }}, 1fr);">
+            {% for label, val in row1 %}
+            <div class="stat-cell"><div class="stat-val">{{ "{:,}".format(val) }}</div><div class="stat-label">{{ label }}</div></div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if row2 %}
+        <div class="levels-row" style="grid-template-columns: repeat({{ row2|length }}, 1fr);">
+            {% for label, val in row2 %}
+            <div class="stat-cell"><div class="stat-val">{{ "{:,}".format(val) }}</div><div class="stat-label">{{ label }}</div></div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- График -->
+    <div class="chart-wrap">
+        <canvas id="levelsChart"></canvas>
+        <div class="chart-icons-row" id="iconRow" style="padding-left:51px;padding-right:0px;">
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/auto.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/easy.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/normal.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/hard.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/harder.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/insane.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/demon-easy.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/demon-medium.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/demon-hard.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/demon-insane.png"></div>
+            <div class="chart-icon"><img src="https://gdbrowser.com/assets/difficulties/demon-extreme.png"></div>
+        </div>
+    </div>
+
+    <div class="total-bar">
+        <span class="total-label">Всего пройдено</span>
+        <span class="total-val">{{ "{:,}".format(grand) }}</span>
+    </div>
+
+    {% endif %}
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+{% if player.classicLevelsCompleted %}
+<script>
+(function() {
+    var lvls  = {{ player.classicLevelsCompleted | tojson }};
+    var plvls = {{ (player.platformerLevelsCompleted or {}) | tojson }};
+    var c     = {{ (player.classicDemonsCompleted or {}) | tojson }};
+    var pd    = {{ (player.platformerDemonsCompleted or {}) | tojson }};
+
+    var COLORS = ['#c4813a','#56aee8','#58d655','#f4d311','#f4831f','#f43fff',
+                  '#b64dff','#8833cc','#e63333','#aa1111','#660000'];
+    var NAMES  = ['Auto','Easy','Normal','Hard','Harder','Insane',
+                  'Easy Demon','Medium Demon','Hard Demon','Insane Demon','Extreme Demon'];
+    var keys  = ['auto','easy','normal','hard','harder','insane'];
+    var dKeys = ['easy','medium','hard','insane','extreme'];
+
+    var allVals = keys.map(function(k){ return (lvls[k]||0)+(plvls[k]||0); })
+               .concat(dKeys.map(function(k){ return (c[k]||0)+(pd[k]||0); }));
+
+    function alignIcons(chart) {
+        if (!chart.chartArea) return;
+        var ca      = chart.chartArea;
+        var iconRow = document.getElementById('iconRow');
+        var totalW  = chart.canvas.offsetWidth;
+        iconRow.style.paddingLeft  = ca.left + 'px';
+        iconRow.style.paddingRight = (totalW - ca.right) + 'px';
+    }
+
+    new Chart(document.getElementById('levelsChart'), {
+        type: 'bar',
+        data: {
+            labels: NAMES.map(function(){ return ''; }),
+            datasets: [{
+                data: allVals,
+                backgroundColor: COLORS.map(function(col){ return col+'55'; }),
+                borderColor: COLORS,
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            animation: { duration: 1000 },
+            onResize: function(chart){ alignIcons(chart); },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#333',
+                    borderWidth: 1,
+                    titleColor: '#888',
+                    bodyColor: '#ccc',
+                    callbacks: {
+                        title: function(items){ return NAMES[items[0].dataIndex]; },
+                        label: function(ctx){ return ' '+ctx.parsed.y.toLocaleString(); }
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { display: false }, grid: { display: false } },
+                y: { ticks: { color: '#444', callback: function(v){ return v.toLocaleString(); } }, grid: { color: '#1a1a1a' } }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+</body>
+</html>
