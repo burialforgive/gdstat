@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лидерборд — GD Stats</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #111111; color: #e8e8e8; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        nav { display: flex; justify-content: center; align-items: center; gap: 2.5rem; padding: 1rem 2rem; border-bottom: 1px solid #222; }
+        .nav-logo { font-size: 0.85rem; font-weight: 700; color: #fff; letter-spacing: 0.15em; text-decoration: none; }
+        .nav-link { font-size: 0.82rem; color: #666; text-decoration: none; }
+        .nav-link:hover { color: #ccc; }
+        .nav-btn { font-size: 0.82rem; color: #ccc; background: #222; border: 1px solid #333; border-radius: 5px; padding: 0.35rem 0.9rem; text-decoration: none; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        .page-title { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 0.3rem; }
+        .page-sub { font-size: 0.8rem; color: #444; margin-bottom: 1.5rem; }
+
+        /* Контролы графика */
+        .chart-controls { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; align-items: center; }
+        .metric-btn { font-size: 0.75rem; color: #555; background: #161616; border: 1px solid #222; border-radius: 4px; padding: 0.3rem 0.8rem; cursor: pointer; }
+        .metric-btn.active { color: #fff; border-color: #444; background: #222; }
+        .metric-btn:hover { color: #aaa; }
+
+        /* График */
+        .chart-block { background: #161616; border: 1px solid #222; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; position: relative; }
+        .chart-title { font-size: 0.68rem; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 1rem; }
+
+        /* Легенда */
+        .legend { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: #666; cursor: pointer; padding: 2px 6px; border-radius: 3px; border: 1px solid transparent; }
+        .legend-item.active { color: #ccc; border-color: #333; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+        /* Таблица */
+        .section-title { font-size: 0.68rem; color: #444; text-transform: uppercase; letter-spacing: 0.1em; margin: 1.5rem 0 0.6rem; }
+        .lb-table { width: 100%; border-collapse: collapse; background: #161616; border: 1px solid #222; border-radius: 8px; overflow: hidden; }
+        .lb-table th { font-size: 0.65rem; color: #333; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid #1a1a1a; font-weight: 500; }
+        .lb-table td { font-size: 0.82rem; color: #888; padding: 0.55rem 1rem; border-bottom: 1px solid #1a1a1a; }
+        .lb-table tr:last-child td { border-bottom: none; }
+        .lb-table tr:hover td { background: #1a1a1a; }
+        .lb-table td.rank { color: #444; font-size: 0.75rem; width: 40px; }
+        .lb-table td.name { color: #ccc; }
+        .lb-table td.name a { color: #ccc; text-decoration: none; }
+        .lb-table td.name a:hover { color: #fff; }
+        .lb-table td.stars { color: #fff; font-weight: 600; }
+        .lb-table tr.selected td { background: #1d1d1d; }
+        .lb-table tr.selected td.name a { color: #fff; }
+
+        /* Изменение за день */
+        .delta { font-size: 0.7rem; margin-left: 4px; }
+        .delta.up { color: #4ade80; }
+        .delta.down { color: #f87171; }
+        .delta.same { color: #333; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="/" class="nav-logo">GD STATS</a>
+    <a href="/" class="nav-link">Главная</a>
+    <a href="/stats" class="nav-link">Статистика</a>
+    <a href="/leaderboard" class="nav-link" style="color:#ccc">Лидерборд</a>
+    <a href="/random" class="nav-btn">Случайный уровень</a>
+</nav>
+
+<div class="container">
+    <div class="page-title">Глобальный лидерборд</div>
+    <div class="page-sub">Топ-100 игроков · обновляется раз в сутки · данные за {{ updated or 'нет данных' }}</div>
+
+    {% if not players %}
+    <div style="background:#161616;border:1px solid #222;border-radius:8px;padding:3rem;text-align:center;color:#333;">
+        Данные ещё не собраны. Запусти <code>python leaderboard.py</code>
+    </div>
+    {% else %}
+
+    <!-- Контролы -->
+    <div class="chart-controls">
+        <span style="font-size:0.72rem;color:#333;margin-right:4px;">График:</span>
+        <button class="metric-btn active" data-metric="stars">Звёзды</button>
+        <button class="metric-btn" data-metric="demons">Демоны</button>
+        <button class="metric-btn" data-metric="moons">Луны</button>
+        <button class="metric-btn" data-metric="coins">Монеты</button>
+        <button class="metric-btn" data-metric="rank">Ранг</button>
+    </div>
+
+    <!-- Легенда -->
+    <div class="legend" id="legend"></div>
+
+    <!-- График -->
+    <div class="chart-block">
+        <div class="chart-title">Динамика топ-10 игроков</div>
+        <canvas id="chart" height="80"></canvas>
+    </div>
+
+    <!-- Таблица -->
+    <div class="section-title">Текущий топ-100</div>
+    <table class="lb-table" id="lb-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Игрок</th>
+                <th>Звёзды</th>
+                <th>Демоны</th>
+                <th>Луны</th>
+                <th>Монеты</th>
+                <th>CP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in players %}
+            <tr data-account="{{ p.account_id }}" onclick="togglePlayer('{{ p.account_id }}', '{{ p.username }}', {{ loop.index0 }})">
+                <td class="rank">{{ p.rank }}</td>
+                <td class="name">
+                    <a href="/player/{{ p.username }}">{{ p.username }}</a>
+                </td>
+                <td class="stars">{{ "{:,}".format(p.stars) }}</td>
+                <td>{{ "{:,}".format(p.demons) }}</td>
+                <td>{{ "{:,}".format(p.moons) }}</td>
+                <td>{{ "{:,}".format(p.coins) }}</td>
+                <td>{{ p.cp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+const COLORS = [
+    '#ffffff','#a78bfa','#60a5fa','#34d399','#fb923c',
+    '#f87171','#e879f9','#facc15','#38bdf8','#4ade80'
+]
+
+let chart = null
+let currentMetric = 'stars'
+let selectedAccounts = []  // выбранные вручную
+let top10Accounts = []     // топ-10 по умолчанию
+let allData = null
+
+// Загружаем данные при старте
+async function loadChart(metric) {
+    const params = new URLSearchParams({ metric })
+    if (selectedAccounts.length > 0)
+        params.set('accounts', selectedAccounts.join(','))
+
+    const res = await fetch('/api/leaderboard/history?' + params)
+    allData = await res.json()
+
+    if (!top10Accounts.length)
+        top10Accounts = Object.keys(allData.players)
+
+    renderChart(allData, metric)
+    renderLegend(allData)
+}
+
+function renderChart(data, metric) {
+    const dates   = data.dates
+    const players = data.players
+
+    const datasets = Object.entries(players).map(([aid, p], i) => ({
+        label: p.username,
+        data: dates.map(d => p.data[d] ?? null),
+        borderColor: COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + '18',
+        fill: false,
+        tension: 0.4,
+        pointRadius: 3,
+        borderWidth: 1.5,
+        spanGaps: true,
+    }))
+
+    if (chart) chart.destroy()
+    chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: { labels: dates, datasets },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1a1a1a',
+                    borderColor: '#333',
+                    borderWidth: 1,
+                    titleColor: '#666',
+                    bodyColor: '#ccc',
+                    callbacks: {
+                        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? '—'}`
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#333', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
+                y: {
+                    ticks: { color: '#555', callback: v => v.toLocaleString() },
+                    grid: { color: '#1a1a1a' },
+                    reverse: metric === 'rank'
+                }
+            }
+        }
+    })
+}
+
+function renderLegend(data) {
+    const legend = document.getElementById('legend')
+    legend.innerHTML = ''
+    Object.entries(data.players).forEach(([aid, p], i) => {
+        const el = document.createElement('div')
+        el.className = 'legend-item active'
+        el.dataset.aid = aid
+        el.innerHTML = `<span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${p.username}`
+        legend.appendChild(el)
+    })
+}
+
+function togglePlayer(accountId, username, idx) {
+    const row = document.querySelector(`tr[data-account="${accountId}"]`)
+    const isSelected = selectedAccounts.includes(accountId)
+
+    if (isSelected) {
+        selectedAccounts = selectedAccounts.filter(a => a !== accountId)
+        row?.classList.remove('selected')
+    } else {
+        if (selectedAccounts.length >= 10) return
+        selectedAccounts.push(accountId)
+        row?.classList.add('selected')
+    }
+
+    if (selectedAccounts.length === 0) {
+        // Сбрасываем на топ-10
+        loadChart(currentMetric)
+    } else {
+        loadChart(currentMetric)
+    }
+}
+
+// Кнопки метрик
+document.querySelectorAll('.metric-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.metric-btn').forEach(b => b.classList.remove('active'))
+        btn.classList.add('active')
+        currentMetric = btn.dataset.metric
+        loadChart(currentMetric)
+    })
+})
+
+loadChart('stars')
+</script>
+</body>
+</html>
