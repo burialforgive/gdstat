@@ -4,12 +4,12 @@ import time
 import os
 from datetime import datetime
 
-DATA_DIR   = "data"
-DB_PATH    = f"{DATA_DIR}/levels.db"
-CURSOR_FILE = f"{DATA_DIR}/gdhistory_cursor.txt"  # последний ID
-BATCH_SIZE = 1000
-DELAY      = 0.5
-BASE_URL   = "https://history.geometrydash.eu/api/v1/search/level/advanced/"
+DATA_DIR    = "data"
+DB_PATH     = f"{DATA_DIR}/levels.db"
+CURSOR_FILE = f"{DATA_DIR}/gdhistory_cursor.txt"
+BATCH_SIZE  = 1000
+DELAY       = 0.5
+BASE_URL    = "https://history.geometrydash.eu/api/v1/search/level/advanced/"
 
 DIFFICULTY_MAP = {
     0: 'Unrated', 1: 'Easy', 2: 'Normal', 3: 'Hard', 4: 'Harder',
@@ -22,10 +22,14 @@ LENGTH_MAP = {0: 'Tiny', 1: 'Short', 2: 'Medium', 3: 'Long', 4: 'XL', 5: 'Plat'}
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    # Оптимизации SQLite для скорости
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=10000")
     return conn
 
-def get_existing_ids(conn):
-    return {row[0] for row in conn.execute("SELECT id FROM levels").fetchall()}
+def get_db_count(conn):
+    return conn.execute("SELECT COUNT(*) FROM levels").fetchone()[0]
 
 def save_level(conn, level):
     conn.execute("""
@@ -81,7 +85,6 @@ def parse_level(raw):
         return None
 
 def fetch_batch(after_id):
-    """Загружает 1000 уровней с ID > after_id"""
     try:
         params = {
             'limit':  BATCH_SIZE,
@@ -118,15 +121,15 @@ def main():
     print("=" * 60)
 
     conn = get_db()
-    print("Загружаем существующие ID...")
-    existing = get_existing_ids(conn)
-    print(f"Уже в базе: {len(existing):,}")
+
+    # Не грузим все ID в память — просто считаем количество
+    total_in_db = get_db_count(conn)
+    print(f"Уже в базе: {total_in_db:,}")
 
     cursor = load_cursor()
     print(f"Стартуем с ID > {cursor:,}\n")
 
     total_saved   = 0
-    total_skipped = 0
     empty_batches = 0
     errors_in_row = 0
 
@@ -162,11 +165,7 @@ def main():
                 if not level:
                     continue
                 last_id = max(last_id, level['id'])
-                if level['id'] in existing:
-                    total_skipped += 1
-                    continue
                 save_level(conn, level)
-                existing.add(level['id'])
                 saved_in_batch += 1
                 total_saved += 1
 
@@ -176,7 +175,7 @@ def main():
 
             print(
                 f"получено {len(batch)} (до ID {last_id:,}) | "
-                f"новых {saved_in_batch} | итого {total_saved:,}"
+                f"сохранено {saved_in_batch} | итого сессия {total_saved:,}"
             )
 
             time.sleep(DELAY)
@@ -186,8 +185,7 @@ def main():
         save_cursor(cursor)
         print("\nОстановлено.")
 
-    total_in_db = conn.execute("SELECT COUNT(*) FROM levels").fetchone()[0]
-    print(f"\nДобавлено: {total_saved:,} | Всего в базе: {total_in_db:,}")
+    print(f"\nВсего в базе: {get_db_count(conn):,}")
     conn.close()
 
 if __name__ == '__main__':
