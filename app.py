@@ -1,13 +1,13 @@
 from flask import Flask, render_template, jsonify, redirect, request
 import os
+import json
 import sqlite3
 import time
-import threading
 
 app = Flask(__name__)
 DATA_DIR     = "data"
-DB_FILE      = os.path.join(DATA_DIR, "site.db")    # быстрая — для сайта
-DB_FULL_FILE = os.path.join(DATA_DIR, "levels.db")  # полная — для статистики
+DB_FILE      = os.path.join(DATA_DIR, "site.db")
+STATS_FILE   = os.path.join(DATA_DIR, "stats.json")
 
 _stats_cache      = None
 _stats_cache_time = 0
@@ -23,12 +23,12 @@ def get_db():
     conn.execute("PRAGMA cache_size=5000")
     return conn
 
-def get_full_db():
-    conn = sqlite3.connect(DB_FULL_FILE)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA cache_size=5000")
-    return conn
+def load_stats():
+    try:
+        with open(STATS_FILE) as f:
+            return json.load(f)
+    except:
+        return None
 
 def row_to_dict(row):
     if row is None:
@@ -61,7 +61,6 @@ def index():
     if _index_cache and (time.time() - _index_cache_time) < INDEX_TTL:
         return _index_cache
 
-    # Топ уровней из быстрой базы
     conn = get_db()
     top_levels = conn.execute('''
         SELECT * FROM levels
@@ -71,12 +70,10 @@ def index():
     ''').fetchall()
     conn.close()
 
-    # Счётчики из полной базы
-    full = get_full_db()
-    total       = full.execute('SELECT COUNT(*) FROM levels').fetchone()[0]
-    platformers = full.execute('SELECT COUNT(*) FROM levels WHERE platformer=1').fetchone()[0]
-    avg_ratio   = full.execute('SELECT AVG(like_ratio) FROM levels WHERE downloads > 100').fetchone()[0] or 0
-    full.close()
+    s = load_stats() or {}
+    total       = s.get('total', 0)
+    platformers = s.get('platformers', 0)
+    avg_ratio   = s.get('avg_ratio', 0) or 0
 
     result = render_template('index.html',
         total_levels=total,
@@ -175,18 +172,10 @@ def compute_stats():
     except Exception as e:
         print(f"compute_stats error: {e}")
 
-def delayed_compute_stats():
-    time.sleep(10)
-    compute_stats()
-
-threading.Thread(target=delayed_compute_stats, daemon=True).start()
-
 @app.route('/stats')
 def global_stats():
-    global _stats_cache, _stats_cache_time
-    if _stats_cache and (time.time() - _stats_cache_time) < STATS_TTL:
-        return _stats_cache
-    if not _stats_cache:
+    s = load_stats()
+    if not s:
         return render_template('stats.html',
             total=0, platformers=0, classic=0, avg_ratio=0,
             total_downloads=0, registered_count=0, unregistered_count=0,
@@ -195,8 +184,51 @@ def global_stats():
             chances=[], difficulties=[], versions=[], rated_count=0,
             anomalies=[], most_downloaded=[]
         )
-    threading.Thread(target=compute_stats, daemon=True).start()
-    return _stats_cache
+
+    total           = s.get('total', 0)
+    platformers     = s.get('platformers', 0)
+    total_downloads = s.get('total_downloads', 0)
+    total_likes     = s.get('total_likes', 0)
+    negative_count  = s.get('negative_count', 0)
+    mythic_count    = s.get('mythic_count', 0)
+    legendary_count = s.get('legendary_count', 0)
+    epic_count      = s.get('epic_count', 0)
+    rated_count     = s.get('rated_count', 0)
+    avg_ratio       = s.get('avg_ratio', 0) or 0
+
+    chances = [
+        ("Получить хотя бы 1 лайк", round((s.get('likes_gt0',0) or 0) / max(total,1) * 100, 1)),
+        ("Получить 10+ лайков",      round((s.get('likes_gt10',0) or 0) / max(total,1) * 100, 1)),
+        ("Получить 100+ лайков",     round((s.get('likes_gt100',0) or 0) / max(total,1) * 100, 1)),
+        ("Получить 1000+ лайков",    round((s.get('likes_gt1000',0) or 0) / max(total,1) * 100, 1)),
+        ("Попасть в Featured",       round((s.get('featured_count',0) or 0) / max(total,1) * 100, 2)),
+        ("Попасть в Epic",           round(epic_count / max(total,1) * 100, 2)),
+        ("Уйти в минус (дизлайки)",  round(negative_count / max(total,1) * 100, 1)),
+    ]
+
+    diff_colors = {
+        'Auto': '#9ca3af', 'Easy': '#34d399', 'Normal': '#60a5fa',
+        'Hard': '#f59e0b', 'Harder': '#fb923c', 'Insane': '#f87171',
+        'Easy Demon': '#c084fc', 'Medium Demon': '#a78bfa',
+        'Hard Demon': '#818cf8', 'Insane Demon': '#6366f1',
+        'Extreme Demon': '#4f46e5'
+    }
+    difficulties = [(d, c, diff_colors.get(d, '#555')) for d, c in s.get('difficulties', [])]
+    versions     = s.get('versions', [])
+    anomalies    = s.get('anomalies', [])
+    most_downloaded = s.get('most_downloaded', [])
+
+    return render_template('stats.html',
+        total=total, platformers=platformers, classic=total - platformers,
+        avg_ratio=round(avg_ratio, 2), total_downloads=total_downloads,
+        registered_count=1807152, unregistered_count=145032,
+        total_likes=total_likes, negative_count=negative_count,
+        mythic_count=mythic_count, legendary_count=legendary_count,
+        epic_count=epic_count, avg_objects=0, max_objects=0,
+        chances=chances, difficulties=difficulties, versions=versions,
+        rated_count=rated_count, anomalies=anomalies,
+        most_downloaded=most_downloaded
+    )
 
 # ───────────────────────────────────────────
 # Уровни и игроки
