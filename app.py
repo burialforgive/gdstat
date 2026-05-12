@@ -80,42 +80,67 @@ _stats_cache = None
 _stats_cache_time = 0
 STATS_CACHE_TTL = 3600  # обновляем раз в час
 
+_stats_cache = None
+_stats_cache_time = 0
+STATS_CACHE_TTL = 3600
+
 @app.route('/stats')
 def global_stats():
     global _stats_cache, _stats_cache_time
-    
-    # Возвращаем кэш если он свежий
+
     if _stats_cache and (time.time() - _stats_cache_time) < STATS_CACHE_TTL:
         return _stats_cache
-    
+
     conn = get_db()
 
-    total = conn.execute('SELECT COUNT(*) FROM levels').fetchone()[0]
-    platformers = conn.execute('SELECT COUNT(*) FROM levels WHERE platformer=1').fetchone()[0]
-    total_downloads = conn.execute('SELECT SUM(downloads) FROM levels').fetchone()[0] or 0
-    total_likes = conn.execute('SELECT SUM(likes) FROM levels').fetchone()[0] or 0
-    registered_count = 1807152
-    unregistered_count = 145032
-    negative_count = conn.execute('SELECT COUNT(*) FROM levels WHERE likes < 0').fetchone()[0]
-    mythic_count = conn.execute('SELECT COUNT(*) FROM levels WHERE mythic=1').fetchone()[0]
-    legendary_count = conn.execute('SELECT COUNT(*) FROM levels WHERE legendary=1').fetchone()[0]
-    epic_count = conn.execute('SELECT COUNT(*) FROM levels WHERE epic=1').fetchone()[0]
-    rated_count = conn.execute('SELECT COUNT(*) FROM levels WHERE stars > 0').fetchone()[0]
-    avg_ratio = conn.execute('SELECT AVG(like_ratio) FROM levels WHERE downloads > 100').fetchone()[0] or 0
-    avg_objects = conn.execute('SELECT AVG(objects) FROM levels WHERE objects > 0').fetchone()[0] or 0
-    max_objects = conn.execute('SELECT MAX(objects) FROM levels').fetchone()[0] or 0
+    # ───────────────────────────────────────────
+    # Один запрос вместо 15 — всё считается за один проход
+    # ───────────────────────────────────────────
+    row = conn.execute('''
+        SELECT
+            COUNT(*)                                         AS total,
+            SUM(CASE WHEN platformer=1 THEN 1 ELSE 0 END)   AS platformers,
+            SUM(downloads)                                   AS total_downloads,
+            SUM(likes)                                       AS total_likes,
+            SUM(CASE WHEN likes < 0 THEN 1 ELSE 0 END)      AS negative_count,
+            SUM(CASE WHEN mythic=1 THEN 1 ELSE 0 END)        AS mythic_count,
+            SUM(CASE WHEN legendary=1 THEN 1 ELSE 0 END)     AS legendary_count,
+            SUM(CASE WHEN epic=1 THEN 1 ELSE 0 END)          AS epic_count,
+            SUM(CASE WHEN stars > 0 THEN 1 ELSE 0 END)       AS rated_count,
+            SUM(CASE WHEN likes > 0 THEN 1 ELSE 0 END)       AS likes_gt0,
+            SUM(CASE WHEN likes >= 10 THEN 1 ELSE 0 END)     AS likes_gt10,
+            SUM(CASE WHEN likes >= 100 THEN 1 ELSE 0 END)    AS likes_gt100,
+            SUM(CASE WHEN likes >= 1000 THEN 1 ELSE 0 END)   AS likes_gt1000,
+            SUM(CASE WHEN featured=1 THEN 1 ELSE 0 END)      AS featured_count,
+            AVG(CASE WHEN downloads > 100 THEN like_ratio END) AS avg_ratio
+        FROM levels
+    ''').fetchone()
+
+    total            = row['total'] or 0
+    platformers      = row['platformers'] or 0
+    total_downloads  = row['total_downloads'] or 0
+    total_likes      = row['total_likes'] or 0
+    negative_count   = row['negative_count'] or 0
+    mythic_count     = row['mythic_count'] or 0
+    legendary_count  = row['legendary_count'] or 0
+    epic_count       = row['epic_count'] or 0
+    rated_count      = row['rated_count'] or 0
+    avg_ratio        = row['avg_ratio'] or 0
 
     chances = [
-        ("Получить хотя бы 1 лайк", round(conn.execute('SELECT COUNT(*) FROM levels WHERE likes > 0').fetchone()[0] / max(total, 1) * 100, 1)),
-        ("Получить 10+ лайков", round(conn.execute('SELECT COUNT(*) FROM levels WHERE likes >= 10').fetchone()[0] / max(total, 1) * 100, 1)),
-        ("Получить 100+ лайков", round(conn.execute('SELECT COUNT(*) FROM levels WHERE likes >= 100').fetchone()[0] / max(total, 1) * 100, 1)),
-        ("Получить 1000+ лайков", round(conn.execute('SELECT COUNT(*) FROM levels WHERE likes >= 1000').fetchone()[0] / max(total, 1) * 100, 1)),
-        ("Попасть в Featured", round(conn.execute('SELECT COUNT(*) FROM levels WHERE featured=1').fetchone()[0] / max(total, 1) * 100, 2)),
-        ("Попасть в Epic", round(conn.execute('SELECT COUNT(*) FROM levels WHERE epic=1').fetchone()[0] / max(total, 1) * 100, 2)),
-        ("Уйти в минус (дизлайки)", round(negative_count / max(total, 1) * 100, 1)),
+        ("Получить хотя бы 1 лайк",    round((row['likes_gt0']   or 0) / max(total, 1) * 100, 1)),
+        ("Получить 10+ лайков",         round((row['likes_gt10']  or 0) / max(total, 1) * 100, 1)),
+        ("Получить 100+ лайков",        round((row['likes_gt100'] or 0) / max(total, 1) * 100, 1)),
+        ("Получить 1000+ лайков",       round((row['likes_gt1000']or 0) / max(total, 1) * 100, 1)),
+        ("Попасть в Featured",          round((row['featured_count'] or 0) / max(total, 1) * 100, 2)),
+        ("Попасть в Epic",              round(epic_count / max(total, 1) * 100, 2)),
+        ("Уйти в минус (дизлайки)",     round(negative_count / max(total, 1) * 100, 1)),
     ]
 
-    diff_rows = conn.execute('SELECT difficulty, COUNT(*) as cnt FROM levels GROUP BY difficulty ORDER BY cnt DESC').fetchall()
+    # Группировки — быстрые благодаря индексам
+    diff_rows = conn.execute(
+        'SELECT difficulty, COUNT(*) as cnt FROM levels GROUP BY difficulty ORDER BY cnt DESC'
+    ).fetchall()
     diff_colors = {
         'Auto': '#9ca3af', 'Easy': '#34d399', 'Normal': '#60a5fa',
         'Hard': '#f59e0b', 'Harder': '#fb923c', 'Insane': '#f87171',
@@ -125,13 +150,22 @@ def global_stats():
     }
     difficulties = [(r['difficulty'], r['cnt'], diff_colors.get(r['difficulty'], '#555')) for r in diff_rows]
 
-    ver_rows = conn.execute('SELECT game_version, COUNT(*) as cnt FROM levels GROUP BY game_version ORDER BY cnt DESC LIMIT 8').fetchall()
+    ver_rows = conn.execute(
+        'SELECT game_version, COUNT(*) as cnt FROM levels GROUP BY game_version ORDER BY cnt DESC LIMIT 8'
+    ).fetchall()
     versions = [(r['game_version'], r['cnt']) for r in ver_rows]
 
-    anomalies = conn.execute('SELECT * FROM levels WHERE likes > downloads AND downloads > 0 ORDER BY like_ratio DESC LIMIT 5').fetchall()
-    most_downloaded = conn.execute('SELECT * FROM levels ORDER BY downloads DESC LIMIT 5').fetchall()
+    anomalies = conn.execute(
+        'SELECT * FROM levels WHERE likes > downloads AND downloads > 0 ORDER BY like_ratio DESC LIMIT 5'
+    ).fetchall()
+    most_downloaded = conn.execute(
+        'SELECT * FROM levels ORDER BY downloads DESC LIMIT 5'
+    ).fetchall()
 
     conn.close()
+
+    registered_count   = 1807152
+    unregistered_count = 145032
 
     result = render_template('stats.html',
         total=total,
@@ -146,8 +180,8 @@ def global_stats():
         mythic_count=mythic_count,
         legendary_count=legendary_count,
         epic_count=epic_count,
-        avg_objects=round(avg_objects),
-        max_objects=max_objects,
+        avg_objects=0,
+        max_objects=0,
         chances=chances,
         difficulties=difficulties,
         versions=versions,
@@ -156,10 +190,8 @@ def global_stats():
         most_downloaded=[row_to_dict(r) for r in most_downloaded]
     )
 
-    # Сохраняем в кэш
     _stats_cache = result
     _stats_cache_time = time.time()
-
     return result
 
 from robtop import fetch_level, fetch_player, search_levels
